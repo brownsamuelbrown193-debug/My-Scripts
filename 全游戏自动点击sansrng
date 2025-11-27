@@ -1,0 +1,100 @@
+local t=false d=false interval=0.03 scale=1
+local function ac()while t do for _,v in pairs(workspace:GetDescendants())do if v:IsA("ClickDetector")then fireclickdetector(v)end end wait(interval)end end
+
+local pg=game.Players.LocalPlayer:WaitForChild("PlayerGui",10)
+local ui=Instance.new("ScreenGui",pg)
+ui.Name="AutoClick"
+ui.DisplayOrder=9999
+ui.IgnoreGuiInset=true
+ui.ResetOnSpawn=false
+
+local main=Instance.new("Frame",ui)
+main.Size=UDim2.new(0,220,0,140)
+main.Position=UDim2.new(0.05,0,0.05,0)
+main.BackgroundColor3=Color3.new(0.1,0.1,0.1)
+main.BorderSizePixel=2
+main.BorderColor3=Color3.new(1,1,1)
+main.Active=true
+main.Draggable=true
+main.Visible=true
+
+--功能开关
+local toggle=Instance.new("TextButton",main)
+toggle.Size=UDim2.new(0.35,0,0.25,0)
+toggle.Position=UDim2.new(0.05,0,0.1,0)
+toggle.BackgroundColor3=Color3.new(1,0,0)
+toggle.Text="开"
+toggle.TextColor3=Color3.new(1,1,1)
+toggle.TextSize=16
+toggle.Font=Enum.Font.ArialBold
+toggle.MouseButton1Click:Connect(function()
+    if d then return end d=true
+    t=not t
+    toggle.Text=t and "关" or "开"
+    toggle.BackgroundColor3=t and Color3.new(0,1,0) or Color3.new(1,0,0)
+    if t then coroutine.wrap(ac)()end
+    wait(0.2)d=false
+end)
+
+--缩放开关
+local scaleBtn=Instance.new("TextButton",main)
+scaleBtn.Size=UDim2.new(0.35,0,0.25,0)
+scaleBtn.Position=UDim2.new(0.6,0,0.1,0)
+scaleBtn.BackgroundColor3=Color3.new(0.2,0.2,0.2)
+scaleBtn.Text="缩放"
+scaleBtn.TextColor3=Color3.new(1,1,1)
+scaleBtn.TextSize=14
+scaleBtn.Font=Enum.Font.ArialBold
+scaleBtn.MouseButton1Click:Connect(function()
+    scale=scale==1 and 0.7 or 1
+    main.Size=UDim2.new(0,220*scale,0,140*scale)
+    toggle.TextSize=16*scale
+    scaleBtn.TextSize=14*scale
+    speedLab.TextSize=14*scale
+    speedInput.TextSize=14*scale
+    confirmBtn.TextSize=14*scale
+end)
+
+--自定义速度（0.01-10秒，改完关开一次生效）
+local speedLab=Instance.new("TextLabel",main)
+speedLab.Size=UDim2.new(0.35,0,0.25,0)
+speedLab.Position=UDim2.new(0.05,0,0.4,0)
+speedLab.BackgroundTransparency=1
+speedLab.Text="间隔(0.01-10):"
+speedLab.TextColor3=Color3.new(1,1,1)
+speedLab.TextSize=14
+speedLab.Font=Enum.Font.Arial
+
+local speedInput=Instance.new("TextBox",main)
+speedInput.Size=UDim2.new(0.2,0,0.25,0)
+speedInput.Position=UDim2.new(0.42,0,0.4,0)
+speedInput.BackgroundColor3=Color3.new(0.2,0.2,0.2)
+speedInput.Text=string.format("%.2f",interval)
+speedInput.TextColor3=Color3.new(1,1,1)
+speedInput.TextSize=14
+speedInput.Font=Enum.Font.Arial
+speedInput.ClearTextOnFocus=false
+speedInput.TextXAlignment=Enum.TextXAlignment.Center
+
+local confirmBtn=Instance.new("TextButton",main)
+confirmBtn.Size=UDim2.new(0.25,0,0.25,0)
+confirmBtn.Position=UDim2.new(0.65,0,0.4,0)
+confirmBtn.BackgroundColor3=Color3.new(0.2,0.2,0.2)
+confirmBtn.Text="确认"
+confirmBtn.TextColor3=Color3.new(1,1,1)
+confirmBtn.TextSize=14
+confirmBtn.Font=Enum.Font.ArialBold
+confirmBtn.MouseButton1Click:Connect(function()
+    local num=tonumber(speedInput.Text)
+    if num and num>=0.01 and num<=10 then
+        interval=num
+        speedInput.Text=string.format("%.2f",interval)
+    end
+end)
+
+--强制刷新
+spawn(function()
+    wait(0.1)
+    main.Visible=false;main.Visible=true
+    ui.Enabled=false;ui.Enabled=true
+end)
