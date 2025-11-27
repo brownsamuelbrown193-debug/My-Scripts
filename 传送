@@ -1,0 +1,270 @@
+local Players = game:GetService('Players')
+local UIS = game:GetService('UserInputService')
+local RS = game:GetService('RunService')
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+
+-- 核心UI（修复空白+拖动）
+local gui = Instance.new('ScreenGui')
+gui.Name = 'TeleportGUI'
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+-- 颜色配置
+local colors = {
+    bg = Color3.fromRGB(30, 30, 40),
+    header = Color3.fromRGB(40, 40, 50),
+    text = Color3.fromRGB(255, 255, 255),
+    input = Color3.fromRGB(50, 50, 60),
+    button = Color3.fromRGB(70, 70, 80),
+    toggleOn = Color3.fromRGB(0, 170, 127),
+    toggleOff = Color3.fromRGB(60, 60, 70)
+}
+
+-- 主窗口（初始缩成标题栏）
+local mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = colors.bg
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.Size = UDim2.new(0, 300, 0, 40) -- 初始一条
+mainFrame.Parent = gui
+Instance.new('UICorner', mainFrame).CornerRadius = UDim.new(0, 8)
+
+-- 标题栏（修复拖动）
+local titleBar = Instance.new('Frame')
+titleBar.Name = 'TitleBar'
+titleBar.BackgroundColor3 = colors.header
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.Parent = mainFrame
+Instance.new('UICorner', titleBar).CornerRadius = UDim.new(0, 8)
+
+-- 标题文字
+local title = Instance.new('TextLabel')
+title.Name = 'Title'
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(0.7, 0, 1, 0)
+title.Font = Enum.Font.GothamSemibold
+title.Text = '坐标传送'
+title.TextColor3 = colors.text
+title.TextSize = 16
+title.Parent = titleBar
+
+-- 展开/收起按钮
+local toggleBtn = Instance.new('TextButton')
+toggleBtn.Name = 'ToggleBtn'
+toggleBtn.AnchorPoint = Vector2.new(1, 0.5)
+toggleBtn.BackgroundTransparency = 1
+toggleBtn.Position = UDim2.new(1, -50, 0.5, 0)
+toggleBtn.Size = UDim2.new(0, 30, 0, 30)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Text = '↑'
+toggleBtn.TextColor3 = colors.text
+toggleBtn.TextSize = 16
+toggleBtn.Parent = titleBar
+
+-- 关闭按钮
+local closeBtn = Instance.new('TextButton')
+closeBtn.Name = 'CloseBtn'
+closeBtn.AnchorPoint = Vector2.new(1, 0.5)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Position = UDim2.new(1, -15, 0.5, 0)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Text = 'X'
+closeBtn.TextColor3 = colors.text
+closeBtn.TextSize = 20
+closeBtn.Parent = titleBar
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+-- 内容区（初始隐藏）
+local contentFrame = Instance.new('Frame')
+contentFrame.Name = 'ContentFrame'
+contentFrame.BackgroundTransparency = 1
+contentFrame.Position = UDim2.new(0, 10, 0, 50)
+contentFrame.Size = UDim2.new(1, -20, 0, 250)
+contentFrame.Visible = false
+contentFrame.Parent = mainFrame
+
+-- 坐标显示
+local currPosLabel = Instance.new('TextLabel')
+currPosLabel.Name = 'CurrPosLabel'
+currPosLabel.BackgroundTransparency = 1
+currPosLabel.Position = UDim2.new(0, 0, 0, 0)
+currPosLabel.Size = UDim2.new(1, 0, 0, 25)
+currPosLabel.Font = Enum.Font.Gotham
+currPosLabel.Text = '当前坐标: X: -- | Y: -- | Z: --'
+currPosLabel.TextColor3 = colors.text
+currPosLabel.TextSize = 14
+currPosLabel.Parent = contentFrame
+
+-- 坐标输入框
+local xInput = Instance.new('TextBox')
+xInput.Name = 'XInput'
+xInput.BackgroundColor3 = colors.input
+xInput.BorderSizePixel = 0
+xInput.Position = UDim2.new(0, 0, 0, 30)
+xInput.Size = UDim2.new(1, 0, 0, 35)
+xInput.Font = Enum.Font.Gotham
+xInput.PlaceholderText = 'X坐标'
+xInput.TextColor3 = colors.text
+xInput.TextSize = 16
+xInput.Parent = contentFrame
+Instance.new('UICorner', xInput).CornerRadius = UDim.new(0, 4)
+Instance.new('UIPadding', xInput).PaddingLeft = UDim.new(0, 8)
+
+local yInput = Instance.new('TextBox')
+yInput.Name = 'YInput'
+yInput.BackgroundColor3 = colors.input
+yInput.BorderSizePixel = 0
+yInput.Position = UDim2.new(0, 0, 0, 70)
+yInput.Size = UDim2.new(1, 0, 0, 35)
+yInput.Font = Enum.Font.Gotham
+yInput.PlaceholderText = 'Y坐标'
+yInput.TextColor3 = colors.text
+yInput.TextSize = 16
+yInput.Parent = contentFrame
+Instance.new('UICorner', yInput).CornerRadius = UDim.new(0, 4)
+Instance.new('UIPadding', yInput).PaddingLeft = UDim.new(0, 8)
+
+local zInput = Instance.new('TextBox')
+zInput.Name = 'ZInput'
+zInput.BackgroundColor3 = colors.input
+zInput.BorderSizePixel = 0
+zInput.Position = UDim2.new(0, 0, 0, 110)
+zInput.Size = UDim2.new(1, 0, 0, 35)
+zInput.Font = Enum.Font.Gotham
+zInput.PlaceholderText = 'Z坐标'
+zInput.TextColor3 = colors.text
+zInput.TextSize = 16
+zInput.Parent = contentFrame
+Instance.new('UICorner', zInput).CornerRadius = UDim.new(0, 4)
+Instance.new('UIPadding', zInput).PaddingLeft = UDim.new(0, 8)
+
+-- 单次传送按钮
+local teleBtn = Instance.new('TextButton')
+teleBtn.Name = 'TeleBtn'
+teleBtn.BackgroundColor3 = colors.button
+teleBtn.BorderSizePixel = 0
+teleBtn.Position = UDim2.new(0, 0, 0, 150)
+teleBtn.Size = UDim2.new(1, 0, 0, 40)
+teleBtn.Font = Enum.Font.Gotham
+teleBtn.Text = '单次传送'
+teleBtn.TextColor3 = colors.text
+teleBtn.TextSize = 16
+teleBtn.Parent = contentFrame
+Instance.new('UICorner', teleBtn).CornerRadius = UDim.new(0, 4)
+
+-- 持续传送开关
+local contToggle = Instance.new('TextButton')
+contToggle.Name = 'ContToggle'
+contToggle.BackgroundColor3 = colors.toggleOff
+contToggle.BorderSizePixel = 0
+contToggle.Position = UDim2.new(0, 0, 0, 200)
+contToggle.Size = UDim2.new(1, 0, 0, 40)
+contToggle.Font = Enum.Font.Gotham
+contToggle.Text = '持续传送: OFF'
+contToggle.TextColor3 = colors.text
+contToggle.TextSize = 16
+contToggle.Parent = contentFrame
+Instance.new('UICorner', contToggle).CornerRadius = UDim.new(0, 4)
+
+-- 展开/收起逻辑
+local isExpanded = false
+toggleBtn.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded
+    if isExpanded then
+        mainFrame.Size = UDim2.new(0, 300, 0, 300) -- 展开
+        contentFrame.Visible = true
+        toggleBtn.Text = '↓'
+    else
+        mainFrame.Size = UDim2.new(0, 300, 0, 40) -- 缩成一条
+        contentFrame.Visible = false
+        toggleBtn.Text = '↑'
+    end
+end)
+
+-- 修复拖动功能
+local dragging = false
+local dragStartPos = Vector2.new()
+local frameStartPos = UDim2.new()
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStartPos = input.Position
+        frameStartPos = mainFrame.Position
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.Touch then
+        local delta = input.Position - dragStartPos
+        mainFrame.Position = UDim2.new(
+            frameStartPos.X.Scale,
+            frameStartPos.X.Offset + delta.X,
+            frameStartPos.Y.Scale,
+            frameStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- 实时更新坐标
+RS.RenderStepped:Connect(function()
+    local char = player.Character
+    local root = char and char:FindFirstChild('HumanoidRootPart')
+    if root then
+        currPosLabel.Text = string.format(
+            '当前坐标: X: %.0f | Y: %.0f | Z: %.0f',
+            root.Position.X, root.Position.Y, root.Position.Z
+        )
+    end
+end)
+
+-- 单次传送功能
+teleBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    local root = char and char:FindFirstChild('HumanoidRootPart')
+    if root then
+        local x = tonumber(xInput.Text)
+        local y = tonumber(yInput.Text)
+        local z = tonumber(zInput.Text)
+        if x and y and z then
+            root.CFrame = CFrame.new(x, y, z)
+        end
+    end
+end)
+
+-- 持续传送功能
+local contTele = false
+local contConn
+contToggle.MouseButton1Click:Connect(function()
+    contTele = not contTele
+    contToggle.Text = contTele and '持续传送: ON' or '持续传送: OFF'
+    contToggle.BackgroundColor3 = contTele and colors.toggleOn or colors.toggleOff
+    if contTele then
+        if contConn then contConn:Disconnect() end
+        contConn = RS.Heartbeat:Connect(function()
+            if not contTele then return end
+            local char = player.Character
+            local root = char and char:FindFirstChild('HumanoidRootPart')
+            if root then
+                local x = tonumber(xInput.Text)
+                local y = tonumber(yInput.Text)
+                local z = tonumber(zInput.Text)
+                if x and y and z then
+                    root.CFrame = CFrame.new(x, y, z)
+                end
+                task.wait(0.2)
+            end
+        end)
+    else
+        if contConn then contConn:Disconnect() end
+    end
+end)
