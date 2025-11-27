@@ -1,0 +1,246 @@
+-- 安卓适配版UI模板（仅折叠+自动用物品）
+local Players = game:GetService('Players')
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+
+-- 核心UI创建
+local gui = Instance.new('ScreenGui')
+gui.Name = 'AndroidAutoUseUI'
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 10
+gui.IgnoreGuiInset = true -- 适配安卓刘海屏
+gui.Parent = playerGui
+
+-- 配色（固定风格）
+local colors = {
+    background = Color3.fromRGB(30, 30, 40),
+    header = Color3.fromRGB(40, 40, 50),
+    text = Color3.fromRGB(255, 255, 255),
+    toggleOff = Color3.fromRGB(60, 60, 70),
+    toggleOn = Color3.fromRGB(0, 170, 127),
+}
+
+-- 主容器（默认展开）
+local mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = colors.background
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.Size = UDim2.new(0, 280, 0, 120) -- 安卓适配小尺寸
+mainFrame.Parent = gui
+
+-- 圆角
+local corner = Instance.new('UICorner')
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- 标题栏（带折叠按钮）
+local titleBar = Instance.new('Frame')
+titleBar.Name = 'TitleBar'
+titleBar.BackgroundColor3 = colors.header
+titleBar.BorderSizePixel = 0
+titleBar.Size = UDim2.new(1, 0, 0, 35) -- 安卓触控适配更大高度
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new('UICorner')
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local title = Instance.new('TextLabel')
+title.Name = 'Title'
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(1, -70, 1, 0)
+title.Font = Enum.Font.GothamSemibold
+title.Text = 'Auto Use Items'
+title.TextColor3 = colors.text
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
+
+-- 折叠/展开按钮（安卓触控友好尺寸）
+local toggleBtn = Instance.new('TextButton')
+toggleBtn.Name = 'ToggleBtn'
+toggleBtn.AnchorPoint = Vector2.new(1, 0.5)
+toggleBtn.BackgroundTransparency = 1
+toggleBtn.Position = UDim2.new(1, -35, 0.5, 0)
+toggleBtn.Size = UDim2.new(0, 25, 0, 25)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Text = '▼'
+toggleBtn.TextColor3 = colors.text
+toggleBtn.TextSize = 18
+toggleBtn.Parent = titleBar
+
+-- 关闭按钮（安卓触控友好尺寸）
+local closeButton = Instance.new('TextButton')
+closeButton.Name = 'CloseButton'
+closeButton.AnchorPoint = Vector2.new(1, 0.5)
+closeButton.BackgroundTransparency = 1
+closeButton.Position = UDim2.new(1, -10, 0.5, 0)
+closeButton.Size = UDim2.new(0, 25, 0, 25)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Text = 'X'
+closeButton.TextColor3 = colors.text
+closeButton.TextSize = 16
+closeButton.Parent = titleBar
+
+-- 内容容器（默认显示）
+local contentFrame = Instance.new('Frame')
+contentFrame.Name = 'ContentFrame'
+contentFrame.BackgroundTransparency = 1
+contentFrame.Position = UDim2.new(0, 10, 0, 40)
+contentFrame.Size = UDim2.new(1, -20, 1, -50)
+contentFrame.Parent = mainFrame
+
+-- 折叠/展开逻辑（安卓无悬浮，用内容显隐）
+local isCollapsed = false
+toggleBtn.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    if isCollapsed then
+        contentFrame.Visible = false
+        mainFrame.Size = UDim2.new(0, 280, 0, 35) -- 折叠成仅标题栏
+        toggleBtn.Text = '▲'
+    else
+        contentFrame.Visible = true
+        mainFrame.Size = UDim2.new(0, 280, 0, 120) -- 展开
+        toggleBtn.Text = '▼'
+    end
+end)
+
+-- 关闭UI
+closeButton.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- 窗口拖拽（适配安卓触控）
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+titleBar.InputBegan:Connect(function(input)
+    -- 适配安卓触摸和鼠标
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+game:GetService('UserInputService').InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- 创建开关组件（安卓触控适配）
+function CreateToggle(toggleName, defaultState, callback)
+    local toggleFrame = Instance.new('Frame')
+    toggleFrame.Name = toggleName .. 'Toggle'
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Position = UDim2.new(0, 0, 0, 10)
+    toggleFrame.Size = UDim2.new(1, 0, 0, 35) -- 更大触控区域
+    toggleFrame.Parent = contentFrame
+
+    local label = Instance.new('TextLabel')
+    label.Name = 'Label'
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.Text = toggleName
+    label.TextColor3 = colors.text
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = toggleFrame
+
+    local toggleButton = Instance.new('TextButton')
+    toggleButton.Name = 'ToggleButton'
+    toggleButton.AnchorPoint = Vector2.new(1, 0.5)
+    toggleButton.BackgroundColor3 = defaultState and colors.toggleOn or colors.toggleOff
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Position = UDim2.new(1, 0, 0.5, 0)
+    toggleButton.Size = UDim2.new(0, 60, 0, 30) -- 更大触控按钮
+    toggleButton.Font = Enum.Font.Gotham
+    toggleButton.Text = defaultState and 'ON' or 'OFF'
+    toggleButton.TextColor3 = colors.text
+    toggleButton.TextSize = 14
+    toggleButton.Parent = toggleFrame
+
+    local toggleCorner = Instance.new('UICorner')
+    toggleCorner.CornerRadius = UDim.new(0, 15)
+    toggleCorner.Parent = toggleButton
+
+    toggleButton.MouseButton1Click:Connect(function()
+        local newState = not (toggleButton.Text == 'ON')
+        toggleButton.Text = newState and 'ON' or 'OFF'
+        toggleButton.BackgroundColor3 = newState and colors.toggleOn or colors.toggleOff
+        if callback then callback(newState) end
+    end)
+    return toggleFrame
+end
+
+-- 自动使用物品逻辑
+local autoUseActive = false
+local autoUseLoop = nil
+
+local function useTools()
+    local char = player.Character
+    if not char then return end
+    local backpack = player.Backpack
+    -- 移动物品到角色
+    for _, v in pairs(backpack:GetChildren()) do
+        if v:IsA('Tool') then
+            v.Parent = char
+        end
+    end
+    -- 激活物品
+    for _, v in pairs(char:GetChildren()) do
+        if v:IsA('Tool') then
+            v:Activate()
+        end
+    end
+end
+
+-- 创建自动使用开关
+CreateToggle('Auto Use Items', false, function(state)
+    autoUseActive = state
+    if autoUseLoop then
+        autoUseLoop:Disconnect()
+        autoUseLoop = nil
+    end
+    if autoUseActive then
+        autoUseLoop = game:GetService('RunService').Heartbeat:Connect(function()
+            if not autoUseActive then return end
+            useTools()
+            task.wait(0.01)
+        end)
+    end
+end)
+
+-- 状态标签
+local statusLabel = Instance.new('TextLabel')
+statusLabel.Name = 'StatusLabel'
+statusLabel.BackgroundTransparency = 1
+statusLabel.Position = UDim2.new(0, 0, 0, 50)
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Text = 'Status: Ready'
+statusLabel.TextColor3 = colors.text
+statusLabel.TextSize = 12
+statusLabel.Parent = contentFrame
