@@ -1,0 +1,565 @@
+local Players = game:GetService('Players')
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+
+-- 独立的呼出按钮UI（永远显示）
+local btnGui = Instance.new('ScreenGui')
+btnGui.Name = 'MobileBtnGui'
+btnGui.ResetOnSpawn = false
+btnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+btnGui.DisplayOrder = 15 -- 层级高于主UI
+btnGui.Parent = playerGui
+
+-- 手机端呼出按钮（独立容器，可拖动）
+local mobileToggleBtn = Instance.new('TextButton')
+mobileToggleBtn.Name = 'MobileToggleBtn'
+mobileToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+mobileToggleBtn.Size = UDim2.new(0, 60, 0, 60)
+mobileToggleBtn.Position = UDim2.new(1, -70, 0.5, 0)
+mobileToggleBtn.Text = '🔧'
+mobileToggleBtn.TextColor3 = Color3.new(1,1,1)
+mobileToggleBtn.Font = Enum.Font.GothamBold
+mobileToggleBtn.TextSize = 28
+mobileToggleBtn.Parent = btnGui
+
+local mobileCorner = Instance.new('UICorner')
+mobileCorner.CornerRadius = UDim.new(1, 0) -- 圆形
+mobileCorner.Parent = mobileToggleBtn
+
+-- 按钮拖动功能
+local btnDragging
+local btnDragStart
+local btnStartPos
+
+local function updateBtnPos(input)
+    local delta = input.Position - btnDragStart
+    mobileToggleBtn.Position = UDim2.new(
+        btnStartPos.X.Scale,
+        btnStartPos.X.Offset + delta.X,
+        btnStartPos.Y.Scale,
+        btnStartPos.Y.Offset + delta.Y
+    )
+end
+
+mobileToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        btnDragging = true
+        btnDragStart = input.Position
+        btnStartPos = mobileToggleBtn.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                btnDragging = false
+            end
+        end)
+    end
+end)
+
+mobileToggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if btnDragging then
+            updateBtnPos(input)
+        end
+    end
+end)
+
+-- Main GUI creation (核心UI)
+local gui = Instance.new('ScreenGui')
+gui.Name = 'ModularGUI'
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 10
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+gui.Enabled = true -- 默认显示
+
+-- 角色重生时重新绑定UI
+player.CharacterAdded:Connect(function()
+    if not playerGui:FindFirstChild('ModularGUI') then
+        local newGui = gui:Clone()
+        newGui.Parent = playerGui
+        gui = newGui
+    end
+    if not playerGui:FindFirstChild('MobileBtnGui') then
+        local newBtnGui = btnGui:Clone()
+        newBtnGui.Parent = playerGui
+        btnGui = newBtnGui
+        mobileToggleBtn = btnGui:FindFirstChild('MobileToggleBtn')
+        
+        -- 重新绑定按钮拖动和点击事件
+        mobileToggleBtn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                btnDragging = true
+                btnDragStart = input.Position
+                btnStartPos = mobileToggleBtn.Position
+
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        btnDragging = false
+                    end
+                end)
+            end
+        end)
+        
+        mobileToggleBtn.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                if btnDragging then
+                    local delta = input.Position - btnDragStart
+                    mobileToggleBtn.Position = UDim2.new(
+                        btnStartPos.X.Scale,
+                        btnStartPos.X.Offset + delta.X,
+                        btnStartPos.Y.Scale,
+                        btnStartPos.Y.Offset + delta.Y
+                    )
+                end
+            end
+        end)
+        
+        mobileToggleBtn.MouseButton1Click:Connect(function()
+            gui.Enabled = not gui.Enabled
+            if gui.Enabled then
+                mainFrame.Size = originalSize
+                contentFrame.Visible = true
+            else
+                if teleportEnabled then
+                    teleportEnabled = false
+                    if teleportLoop then task.cancel(teleportLoop) end
+                    activeFunctions = math.max(0, activeFunctions - 1)
+                end
+                if autoInteractEnabled then
+                    autoInteractEnabled = false
+                    if autoInteractLoop then task.cancel(autoInteractLoop) end
+                    activeFunctions = math.max(0, activeFunctions - 1)
+                end
+            end
+        end)
+    end
+end)
+
+-- Color scheme (配色)
+local colors = {
+    background = Color3.fromRGB(30, 30, 40),
+    header = Color3.fromRGB(40, 40, 50),
+    text = Color3.fromRGB(255, 255, 255),
+    subtext = Color3.fromRGB(200, 200, 200),
+    button = Color3.fromRGB(70, 70, 80),
+    buttonHover = Color3.fromRGB(90, 90, 100),
+    toggleOff = Color3.fromRGB(60, 60, 70),
+    toggleOn = Color3.fromRGB(0, 170, 127),
+    input = Color3.fromRGB(50, 50, 60),
+}
+
+-- 功能状态跟踪
+local activeFunctions = 0
+local originalSize = UDim2.new(0, 300, 0, 300)
+
+-- Main container (主窗口)
+local mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = colors.background
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.Size = originalSize
+mainFrame.Parent = gui
+
+-- 圆角
+local corner = Instance.new('UICorner')
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- 阴影
+local shadow = Instance.new('ImageLabel')
+shadow.Name = 'Shadow'
+shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+shadow.BackgroundTransparency = 1
+shadow.BorderSizePixel = 0
+shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
+shadow.Size = UDim2.new(1, 10, 1, 10)
+shadow.Image = 'rbxassetid://1316045217'
+shadow.ImageColor3 = Color3.new(0, 0, 0)
+shadow.ImageTransparency = 0.8
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+shadow.Parent = mainFrame
+shadow.ZIndex = -1
+
+-- Title bar (标题栏，可拖动)
+local titleBar = Instance.new('Frame')
+titleBar.Name = 'TitleBar'
+titleBar.BackgroundColor3 = colors.header
+titleBar.BorderSizePixel = 0
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new('UICorner')
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleBar
+
+local title = Instance.new('TextLabel')
+title.Name = 'Title'
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Size = UDim2.new(1, -50, 1, 0) -- 只留关闭按钮位置
+title.Font = Enum.Font.GothamSemibold
+title.Text = 'Auto Scripts'
+title.TextColor3 = colors.text
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
+
+-- 关闭按钮（去掉缩放按钮）
+local closeButton = Instance.new('TextButton')
+closeButton.Name = 'CloseButton'
+closeButton.BackgroundTransparency = 1
+closeButton.Size = UDim2.new(0, 20, 1, 0)
+closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Text = 'X'
+closeButton.TextColor3 = colors.text
+closeButton.TextSize = 14
+closeButton.Parent = titleBar
+
+-- 关闭按钮逻辑
+closeButton.MouseButton1Click:Connect(function()
+    if teleportEnabled then
+        teleportEnabled = false
+        if teleportLoop then task.cancel(teleportLoop) end
+        activeFunctions = math.max(0, activeFunctions - 1)
+    end
+    if autoInteractEnabled then
+        autoInteractEnabled = false
+        if autoInteractLoop then task.cancel(autoInteractLoop) end
+        activeFunctions = math.max(0, activeFunctions - 1)
+    end
+    gui.Enabled = false -- 只隐藏主UI，呼出按钮还在
+end)
+
+-- 手机按钮点击逻辑（独立绑定）
+mobileToggleBtn.MouseButton1Click:Connect(function()
+    gui.Enabled = not gui.Enabled
+    if gui.Enabled then
+        mainFrame.Size = originalSize
+        contentFrame.Visible = true
+    else
+        if teleportEnabled then
+            teleportEnabled = false
+            if teleportLoop then task.cancel(teleportLoop) end
+            activeFunctions = math.max(0, activeFunctions - 1)
+        end
+        if autoInteractEnabled then
+            autoInteractEnabled = false
+            if autoInteractLoop then task.cancel(autoInteractLoop) end
+            activeFunctions = math.max(0, activeFunctions - 1)
+        end
+    end
+end)
+
+-- Content frame (内容容器)
+local contentFrame = Instance.new('Frame')
+contentFrame.Name = 'ContentFrame'
+contentFrame.BackgroundTransparency = 1
+contentFrame.Position = UDim2.new(0, 10, 0, 40)
+contentFrame.Size = UDim2.new(1, -20, 1, -50)
+contentFrame.Visible = true
+contentFrame.Parent = mainFrame
+
+-- 自动布局变量
+local currentYPosition = 0
+local elementPadding = 5
+local sectionPadding = 15
+
+-- 更新窗口高度
+local function UpdateFrameSize()
+    local totalHeight = 40 + currentYPosition + 10
+    originalSize = UDim2.new(0, 300, 0, totalHeight)
+    mainFrame.Size = originalSize
+end
+
+-- 创建分类标签
+function CreateSection(titleText)
+    local sectionFrame = Instance.new('Frame')
+    sectionFrame.Name = titleText .. 'Section'
+    sectionFrame.BackgroundTransparency = 1
+    sectionFrame.Position = UDim2.new(0, 0, 0, currentYPosition)
+    sectionFrame.Size = UDim2.new(1, 0, 0, 20)
+    sectionFrame.Parent = contentFrame
+
+    local label = Instance.new('TextLabel')
+    label.Name = 'Label'
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.Text = titleText
+    label.TextColor3 = colors.subtext
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = sectionFrame
+
+    currentYPosition = currentYPosition + 20 + elementPadding
+    UpdateFrameSize()
+
+    return sectionFrame
+end
+
+-- 创建开关
+function CreateToggle(toggleName, defaultState, callback)
+    local toggleFrame = Instance.new('Frame')
+    toggleFrame.Name = toggleName .. 'Toggle'
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Position = UDim2.new(0, 0, 0, currentYPosition)
+    toggleFrame.Size = UDim2.new(1, 0, 0, 30)
+    toggleFrame.Parent = contentFrame
+
+    local label = Instance.new('TextLabel')
+    label.Name = 'Label'
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.Text = toggleName
+    label.TextColor3 = colors.text
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = toggleFrame
+
+    local toggleButton = Instance.new('TextButton')
+    toggleButton.Name = 'ToggleButton'
+    toggleButton.AnchorPoint = Vector2.new(1, 0.5)
+    toggleButton.BackgroundColor3 = defaultState and colors.toggleOn or colors.toggleOff
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Position = UDim2.new(1, 0, 0.5, 0)
+    toggleButton.Size = UDim2.new(0, 50, 0, 25)
+    toggleButton.Font = Enum.Font.Gotham
+    toggleButton.Text = defaultState and 'ON' or 'OFF'
+    toggleButton.TextColor3 = colors.text
+    toggleButton.TextSize = 12
+    toggleButton.Parent = toggleFrame
+
+    local toggleCorner = Instance.new('UICorner')
+    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.Parent = toggleButton
+
+    -- 开关事件
+    toggleButton.MouseButton1Click:Connect(function()
+        local newState = not (toggleButton.Text == 'ON')
+        toggleButton.Text = newState and 'ON' or 'OFF'
+        toggleButton.BackgroundColor3 = newState and colors.toggleOn or colors.toggleOff
+        
+        if newState then
+            activeFunctions = activeFunctions + 1
+            gui.Enabled = true
+        else
+            activeFunctions = math.max(0, activeFunctions - 1)
+            if activeFunctions == 0 then
+                gui.Enabled = false
+            end
+        end
+        
+        callback(newState)
+    end)
+
+    currentYPosition = currentYPosition + 30 + elementPadding
+    UpdateFrameSize()
+
+    return toggleFrame
+end
+
+-- 创建输入框
+function CreateInputBox(labelText, placeholder)
+    local inputFrame = Instance.new('Frame')
+    inputFrame.Name = labelText .. 'InputFrame'
+    inputFrame.BackgroundTransparency = 1
+    inputFrame.Position = UDim2.new(0, 0, 0, currentYPosition)
+    inputFrame.Size = UDim2.new(1, 0, 0, 60)
+    inputFrame.Parent = contentFrame
+
+    local inputLabel = Instance.new('TextLabel')
+    inputLabel.Name = 'InputLabel'
+    inputLabel.BackgroundTransparency = 1
+    inputLabel.Position = UDim2.new(0, 0, 0, 0)
+    inputLabel.Size = UDim2.new(1, 0, 0, 20)
+    inputLabel.Font = Enum.Font.Gotham
+    inputLabel.Text = labelText
+    inputLabel.TextColor3 = colors.subtext
+    inputLabel.TextSize = 12
+    inputLabel.TextXAlignment = Enum.TextXAlignment.Left
+    inputLabel.Parent = inputFrame
+
+    local inputBox = Instance.new('TextBox')
+    inputBox.Name = 'InputBox'
+    inputBox.BackgroundColor3 = colors.input
+    inputBox.BorderSizePixel = 0
+    inputBox.Position = UDim2.new(0, 0, 0, 25)
+    inputBox.Size = UDim2.new(1, 0, 0, 30)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    inputBox.PlaceholderText = placeholder
+    inputBox.Text = ''
+    inputBox.TextColor3 = colors.text
+    inputBox.TextSize = 14
+    inputBox.TextXAlignment = Enum.TextXAlignment.Left
+    inputBox.Parent = inputFrame
+
+    local inputCorner = Instance.new('UICorner')
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = inputBox
+
+    local inputPadding = Instance.new('UIPadding')
+    inputPadding.PaddingLeft = UDim.new(0, 8)
+    inputPadding.Parent = inputBox
+
+    currentYPosition = currentYPosition + 60 + elementPadding
+    UpdateFrameSize()
+
+    return inputBox
+end
+
+-- 窗口拖动功能
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+game:GetService('UserInputService').InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- 核心功能变量
+local teleportTarget = 'LVContainer'
+local teleportEnabled = false
+local teleportLoop = nil
+local teleportHeight = 3
+local teleportSpeed = 0.5
+local autoInteractEnabled = false
+local autoInteractLoop = nil
+
+-- 创建UI组件
+CreateSection('传送设置')
+local targetInput = CreateInputBox('传送目标名称:', 'LVContainer')
+targetInput.Text = 'LVContainer'
+
+CreateSection('功能开关')
+-- 传送开关
+CreateToggle('自动传送', false, function(state)
+    teleportEnabled = state
+    teleportTarget = targetInput.Text ~= '' and targetInput.Text or 'LVContainer'
+    
+    if teleportEnabled then
+        teleportLoop = task.spawn(function()
+            while teleportEnabled do
+                local character = player.Character
+                if not character then break end
+                
+                local hrp = character:FindFirstChild('HumanoidRootPart')
+                if not hrp then break end
+                
+                local targets = {}
+                for _, obj in pairs(game.Workspace:GetDescendants()) do
+                    if obj.Name == teleportTarget and obj:IsA('BasePart') then
+                        table.insert(targets, obj)
+                    end
+                end
+                
+                if #targets > 0 then
+                    local closest = nil
+                    local minDist = math.huge
+                    
+                    for _, target in pairs(targets) do
+                        local dist = (hrp.Position - target.Position).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            closest = target
+                        end
+                    end
+                    
+                    if closest then
+                        hrp.CFrame = CFrame.new(closest.Position + Vector3.new(0, teleportHeight, 0))
+                    end
+                end
+                
+                task.wait(teleportSpeed)
+            end
+        end)
+    else
+        if teleportLoop then
+            task.cancel(teleportLoop)
+            teleportLoop = nil
+        end
+    end
+end)
+
+-- 自动交互开关
+CreateToggle('全自动交互', false, function(state)
+    autoInteractEnabled = state
+    
+    if autoInteractEnabled then
+        autoInteractLoop = task.spawn(function()
+            while autoInteractEnabled do
+                local character = player.Character
+                if not character then break end
+                
+                local hrp = character:FindFirstChild('HumanoidRootPart')
+                if not hrp then break end
+                
+                for _, prompt in pairs(game.Workspace:GetDescendants()) do
+                    if prompt:IsA('ProximityPrompt') then
+                        local part = prompt.Parent:IsA('BasePart') and prompt.Parent or nil
+                        if part and (part.Position - hrp.Position).Magnitude < 150 then
+                            pcall(fireproximityprompt, prompt)
+                        end
+                    end
+                end
+                
+                for _, click in pairs(game.Workspace:GetDescendants()) do
+                    if click:IsA('ClickDetector') then
+                        local part = click.Parent:IsA('BasePart') and click.Parent or nil
+                        if part and (part.Position - hrp.Position).Magnitude < 150 then
+                            pcall(fireclickdetector, click)
+                        end
+                    end
+                end
+                
+                task.wait(0.2)
+            end
+        end)
+    else
+        if autoInteractLoop then
+            task.cancel(autoInteractLoop)
+            autoInteractLoop = nil
+        end
+    end
+end)
