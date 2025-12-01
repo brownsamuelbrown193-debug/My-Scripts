@@ -1,0 +1,113 @@
+pcall(function()
+    local Players = game:GetService("Players")
+    local CoreGui = game:GetService("CoreGui")
+    local UserInputService = game:GetService("UserInputService")
+
+    -- 脚本配置（替换旧传送脚本为新链接）
+    local scriptConfig = {
+        ["ESP (Distance & HP)"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/esp",
+        ["Troll Multiverse"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/TM",
+        ["God Mode"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/god%20%20mod",
+        ["Teleport"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/1222222", -- 新脚本链接
+        ["Auto Click"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/%E5%85%A8%E6%B8%B8%E6%88%8F%E8%87%AA%E5%8A%A8%E7%82%B9%E5%87%BBsansrng",
+        ["Auto Use Items"] = "https://raw.githubusercontent.com/brownsamuelbrown193-debug/My-Scripts/main/%E8%87%AA%E5%8A%A8%E4%BD%BF%E7%94%A8%E5%85%A8%E9%83%A8%E7%89%A9%E5%93%81"
+    }
+
+    -- 创建UI容器
+    local mainGui = Instance.new("ScreenGui")
+    mainGui.Name = "ScriptHub_Final"
+    mainGui.Parent = CoreGui
+    mainGui.DisplayOrder = 999
+
+    -- 主面板
+    local panel = Instance.new("Frame")
+    panel.Size = UDim2.new(0, 180, 0, 40)
+    panel.Position = UDim2.new(0, 50, 0, 50)
+    panel.BackgroundColor3 = Color3.new(0.1, 0.1, 0.2)
+    panel.BorderSizePixel = 1
+    panel.BorderColor3 = Color3.new(0.5, 0.5, 1)
+    panel.AnchorPoint = Vector2.new(0, 0)
+    panel.Parent = mainGui
+
+    -- 标题栏
+    local titleBar = Instance.new("TextButton")
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundColor3 = Color3.new(0.2, 0.2, 0.4)
+    titleBar.Text = "Script Hub"
+    titleBar.TextColor3 = Color3.new(1, 1, 1)
+    titleBar.Parent = panel
+
+    -- 展开/收起按钮
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 40, 0, 40)
+    toggleBtn.Position = UDim2.new(0.7, 0, 0, 0)
+    toggleBtn.BackgroundColor3 = Color3.new(0.25, 0.25, 0.5)
+    toggleBtn.Text = "|"
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.Parent = titleBar
+
+    -- 关闭按钮
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Position = UDim2.new(0.85, 0, 0, 0)
+    closeBtn.BackgroundColor3 = Color3.new(0.5, 0.2, 0.2)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.Parent = titleBar
+    closeBtn.MouseButton1Click:Connect(function() mainGui:Destroy() end)
+
+    -- 按钮容器
+    local btnFrame = Instance.new("Frame")
+    btnFrame.Size = UDim2.new(1, 0, 1, -40)
+    btnFrame.Position = UDim2.new(0, 0, 0, 40)
+    btnFrame.BackgroundTransparency = 1
+    btnFrame.Visible = false
+    btnFrame.Parent = panel
+
+    -- 功能按钮
+    local btnPosY = 10
+    for btnName, scriptLink in pairs(scriptConfig) do
+        local funcBtn = Instance.new("TextButton")
+        funcBtn.Size = UDim2.new(0.9, 0, 0, 45)
+        funcBtn.Position = UDim2.new(0.05, 0, 0, btnPosY)
+        funcBtn.BackgroundColor3 = Color3.new(0.2, 0.2, 0.4)
+        funcBtn.Text = btnName
+        funcBtn.TextColor3 = Color3.new(1, 1, 1)
+        funcBtn.Parent = btnFrame
+        funcBtn.MouseButton1Click:Connect(function()
+            pcall(function() loadstring(game:HttpGet(scriptLink))() end)
+        end)
+        btnPosY = btnPosY + 50
+    end
+
+    -- 展开/收起逻辑
+    local isExpanded = false
+    toggleBtn.MouseButton1Click:Connect(function()
+        isExpanded = not isExpanded
+        toggleBtn.Text = isExpanded and "-" or "|"
+        panel.Size = isExpanded and UDim2.new(0, 300, 0, 40 + (6 * 50) + 20) or UDim2.new(0, 180, 0, 40)
+        btnFrame.Visible = isExpanded
+    end)
+
+    -- 拖动逻辑
+    local dragStart = nil
+    local panelStartPos = nil
+    titleBar.MouseButton1Down:Connect(function()
+        local mousePos = UserInputService:GetMouseLocation()
+        dragStart = mousePos
+        panelStartPos = Vector2.new(panel.Position.X.Offset, panel.Position.Y.Offset)
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragStart and input.UserInputType == Enum.UserInputType.Touch then
+            local mousePos = UserInputService:GetMouseLocation()
+            local delta = mousePos - dragStart
+            panel.Position = UDim2.new(0, panelStartPos.X + delta.X, 0, panelStartPos.Y + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragStart = nil
+            panelStartPos = nil
+        end
+    end)
+end)
