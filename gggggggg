@@ -1,0 +1,118 @@
+-- 精准版：仅扫描DEX里的Workspace和Players
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DEXDeleter"
+ScreenGui.Parent = game:GetService("Players").LocalPlayer.PlayerGui
+
+-- 迷你UI
+local Panel = Instance.new("Frame")
+Panel.Size = UDim2.new(0, 220, 0, 220)
+Panel.Position = UDim2.new(0.05, 0, 0.1, 0)
+Panel.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
+Panel.Parent = ScreenGui
+Instance.new("UICorner", Panel).CornerRadius = UDim.new(0,6)
+
+-- 物品名输入框
+local Input = Instance.new("TextBox")
+Input.Size = UDim2.new(0.9,0,0,30)
+Input.Position = UDim2.new(0.05,0,0,10)
+Input.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
+Input.Text = "Toy Knife"
+Input.TextColor3 = Color3.new(1,1,1)
+Input.TextSize = 14
+Input.Parent = Panel
+
+-- 快速删除按钮
+local BtnDelete = Instance.new("TextButton")
+BtnDelete.Size = UDim2.new(0.9,0,0,30)
+BtnDelete.Position = UDim2.new(0.05,0,0,45)
+BtnDelete.BackgroundColor3 = Color3.new(0.2,0.6,0.2)
+BtnDelete.Text = "删除（Workspace+Players）"
+BtnDelete.TextColor3 = Color3.new(1,1,1)
+BtnDelete.TextSize = 14
+BtnDelete.Parent = Panel
+
+-- 日志显示框
+local LogBox = Instance.new("TextBox")
+LogBox.Size = UDim2.new(0.9,0,0,80)
+LogBox.Position = UDim2.new(0.05,0,0,80)
+LogBox.BackgroundColor3 = Color3.new(0.15,0.15,0.15)
+LogBox.Text = "日志：等待操作...\n仅扫描Workspace和Players"
+LogBox.TextColor3 = Color3.new(0.8,0.8,0.8)
+LogBox.TextSize = 12
+LogBox.TextWrapped = true
+LogBox.ClearTextOnFocus = false
+LogBox.Parent = Panel
+
+-- 关闭按钮
+local BtnClose = Instance.new("TextButton")
+BtnClose.Size = UDim2.new(0.9,0,0,25)
+BtnClose.Position = UDim2.new(0.05,0,0,170)
+BtnClose.BackgroundColor3 = Color3.new(0.4,0.4,0.4)
+BtnClose.Text = "关闭"
+BtnClose.TextColor3 = Color3.new(1,1,1)
+BtnClose.TextSize = 12
+BtnClose.Parent = Panel
+
+-- 核心配置：DEX里的第一个（Workspace）和第二个（Players）
+local scanTargets = {
+    game:GetService("Workspace"), -- DEX第一个：Workspace
+    game:GetService("Players")   -- DEX第二个：Players
+}
+
+-- 精准删除函数
+local function targetedDelete()
+    local targetName = Input.Text
+    LogBox.Text = "开始查找："..targetName.."\n扫描范围：Workspace + Players\n"
+    local deletedCount = 0
+
+    -- 扫描单个目标位置
+    local function scanAndDelete(target)
+        if not target then return end
+        -- 遍历所有子对象（包括嵌套）
+        for _, obj in ipairs(target:GetDescendants()) do
+            if obj.Name == targetName then
+                LogBox.Text = LogBox.Text.."找到："..obj:GetFullName().."\n"
+                -- 强制删除（忽略部分保护）
+                local success = pcall(function() obj:Destroy() end)
+                if success then
+                    deletedCount += 1
+                    LogBox.Text = LogBox.Text.."删除成功！\n"
+                else
+                    LogBox.Text = LogBox.Text.."删除失败（无权限）\n"
+                end
+            end
+        end
+    end
+
+    -- 批量扫描配置的目标位置
+    for _, target in ipairs(scanTargets) do
+        scanAndDelete(target)
+    end
+
+    LogBox.Text = LogBox.Text.."\n操作完成！总计删除："..deletedCount.."个对象"
+end
+
+-- 按钮事件绑定
+BtnDelete.MouseButton1Click:Connect(targetedDelete)
+BtnClose.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+-- 手机触摸拖动功能
+local dragging, dragStart, startPos = false, nil, nil
+Panel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Panel.Position
+    end
+end)
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and dragging then
+        local delta = input.Position - dragStart
+        Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
