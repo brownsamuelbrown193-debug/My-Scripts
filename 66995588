@@ -1,0 +1,173 @@
+-- 精准版：10秒循环删除（仅扫描Players目录+死亡UI常驻）
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DEXDeleter"
+ScreenGui.Parent = game:GetService("Players").LocalPlayer.PlayerGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- 确保UI层级正常
+ScreenGui.IgnoreGuiInset = false -- 不忽略屏幕边缘Insets
+
+-- 关键：设置UI死亡后不消失（核心属性）
+ScreenGui.ResetOnSpawn = false -- 禁用重生时重置UI
+ScreenGui.DisplayOrder = 1000 -- 提高显示层级，避免被遮挡
+
+-- 迷你UI（保留原风格）
+local Panel = Instance.new("Frame")
+Panel.Size = UDim2.new(0, 220, 0, 250)
+Panel.Position = UDim2.new(0.05, 0, 0.1, 0)
+Panel.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
+Panel.Parent = ScreenGui
+Instance.new("UICorner", Panel).CornerRadius = UDim.new(0,6)
+
+-- 物品名输入框
+local Input = Instance.new("TextBox")
+Input.Size = UDim2.new(0.9,0,0,30)
+Input.Position = UDim2.new(0.05,0,0,10)
+Input.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
+Input.Text = "Toy Knife"
+Input.TextColor3 = Color3.new(1,1,1)
+Input.TextSize = 14
+Input.Parent = Panel
+
+-- 循环控制按钮
+local BtnStartLoop = Instance.new("TextButton")
+BtnStartLoop.Size = UDim2.new(0.9,0,0,30)
+BtnStartLoop.Position = UDim2.new(0.05,0,0,45)
+BtnStartLoop.BackgroundColor3 = Color3.new(0.2,0.6,0.2)
+BtnStartLoop.Text = "开始循环删除（10秒/次）"
+BtnStartLoop.TextColor3 = Color3.new(1,1,1)
+BtnStartLoop.TextSize = 14
+BtnStartLoop.Parent = Panel
+
+local BtnStopLoop = Instance.new("TextButton")
+BtnStopLoop.Size = UDim2.new(0.9,0,0,30)
+BtnStopLoop.Position = UDim2.new(0.05,0,0,80)
+BtnStopLoop.BackgroundColor3 = Color3.new(0.6,0.2,0.2)
+BtnStopLoop.Text = "停止循环删除"
+BtnStopLoop.TextColor3 = Color3.new(1,1,1)
+BtnStopLoop.TextSize = 14
+BtnStopLoop.Parent = Panel
+
+-- 日志显示框
+local LogBox = Instance.new("TextBox")
+LogBox.Size = UDim2.new(0.9,0,0,80)
+LogBox.Position = UDim2.new(0.05,0,0,115)
+LogBox.BackgroundColor3 = Color3.new(0.15,0.15,0.15)
+LogBox.Text = "日志：等待操作...\n仅扫描Players目录\n循环间隔：10秒\n死亡后UI保持显示"
+LogBox.TextColor3 = Color3.new(0.8,0.8,0.8)
+LogBox.TextSize = 12
+LogBox.TextWrapped = true
+LogBox.ClearTextOnFocus = false
+LogBox.Parent = Panel
+
+-- 关闭按钮
+local BtnClose = Instance.new("TextButton")
+BtnClose.Size = UDim2.new(0.9,0,0,25)
+BtnClose.Position = UDim2.new(0.05,0,0,200)
+BtnClose.BackgroundColor3 = Color3.new(0.4,0.4,0.4)
+BtnClose.Text = "关闭"
+BtnClose.TextColor3 = Color3.new(1,1,1)
+BtnClose.TextSize = 12
+BtnClose.Parent = Panel
+
+-- 核心配置：仅扫描Players（玩家目录）
+local scanTargets = { game:GetService("Players") }
+local loopEnabled = false
+local loopInterval = 10 -- 循环间隔：10秒
+local totalDeleted = 0
+
+-- 精准删除函数
+local function targetedDelete()
+    local targetName = Input.Text
+    local deletedCount = 0
+
+    local function scanAndDelete(target)
+        if not target then return end
+        for _, obj in ipairs(target:GetDescendants()) do
+            if obj.Name == targetName then
+                local success = pcall(function() obj:Destroy() end)
+                if success then
+                    deletedCount += 1
+                    totalDeleted += 1
+                    LogBox.Text = string.format("日志：删除成功！\n目标：%s\n本次删除：%d个\n累计删除：%d个", obj:GetFullName(), deletedCount, totalDeleted)
+                end
+            end
+        end
+    end
+
+    for _, target in ipairs(scanTargets) do
+        scanAndDelete(target)
+    end
+
+    if deletedCount == 0 then
+        LogBox.Text = string.format("日志：未找到目标「%s」\n本次删除：0个\n累计删除：%d个", targetName, totalDeleted)
+    end
+end
+
+-- 循环控制逻辑
+local loopConnection = nil
+BtnStartLoop.MouseButton1Click:Connect(function()
+    if not loopEnabled then
+        loopEnabled = true
+        LogBox.Text = "日志：开始循环删除...\n仅扫描Players目录\n循环间隔：10秒\n累计删除：0个\n死亡后UI保持显示"
+        totalDeleted = 0
+        loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            if loopEnabled then
+                targetedDelete()
+                wait(loopInterval)
+            end
+        end)
+    end
+end)
+
+BtnStopLoop.MouseButton1Click:Connect(function()
+    if loopEnabled then
+        loopEnabled = false
+        if loopConnection then
+            loopConnection:Disconnect()
+            loopConnection = nil
+        end
+        LogBox.Text = string.format("日志：已停止循环删除\n累计删除：%d个\n死亡后UI保持显示", totalDeleted)
+    end
+end)
+
+-- 关闭按钮事件
+BtnClose.MouseButton1Click:Connect(function()
+    loopEnabled = false
+    if loopConnection then loopConnection:Disconnect() end
+    ScreenGui:Destroy()
+end)
+
+-- 手机触摸拖动功能
+local dragging, dragStart, startPos = false, nil, nil
+Panel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Panel.Position
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and dragging then
+        local delta = input.Position - dragStart
+        Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- 额外防护：监听玩家重生，强制保留UI（双重保障）
+local LocalPlayer = game:GetService("Players").LocalPlayer
+LocalPlayer.CharacterAdded:Connect(function()
+    -- 重生后重新设置UI父级（防止被意外移除）
+    if not ScreenGui.Parent then
+        ScreenGui.Parent = LocalPlayer.PlayerGui
+    end
+    -- 确保UI属性不变
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.DisplayOrder = 1000
+    LogBox.Text = LogBox.Text .. "\n（已重生，UI保持显示）"
+end)
