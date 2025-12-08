@@ -1,0 +1,51 @@
+CreateToggle('TPCollect', false, function(state)
+    tpCollectActive = state
+    local player = game.Players.LocalPlayer
+    -- 新增：角色重置时自动停止循环
+    local charAddedConn
+    if charAddedConn then charAddedConn:Disconnect() end
+    charAddedConn = player.CharacterAdded:Connect(function()
+        tpCollectActive = false
+        tpCollectLoop = nil
+    end)
+
+    if not tpCollectActive then
+        tpCollectLoop = nil -- 关闭时销毁协程
+        return
+    end
+
+    if tpCollectLoop then
+        tpCollectLoop = nil
+    end
+
+    tpCollectLoop = coroutine.create(function()
+        while tpCollectActive do
+            local char = player.Character
+            local hrp = char and char:FindFirstChild('HumanoidRootPart')
+            local humanoid = char and char:FindFirstChild('Humanoid')
+            -- 新增：角色死亡/不存在直接终止
+            if not char or not hrp or humanoid.Health <= 0 then
+                tpCollectActive = false
+                break
+            end
+
+            local chests = game.Workspace.ChestFolderThing:GetChildren()
+            for _, chest in ipairs(chests) do
+                if not tpCollectActive then break end
+                local handle = chest:FindFirstChild('Handle')
+                local prompt = handle and handle:FindFirstChild('ProximityPrompt')
+                if chest:IsA('Model') and handle and prompt then
+                    local distance = (handle.Position - hrp.Position).Magnitude
+                    if distance <= 1100 then -- 已改成1100范围
+                        hrp.CFrame = CFrame.new(handle.Position + Vector3.new(0, 2, 0))
+                        task.wait(0.15)
+                        fireproximityprompt(prompt)
+                        task.wait(0.3) -- 轻微延长间隔，降低CPU占用
+                    end
+                end
+            end
+            task.wait(0.8) -- 延长主循环间隔，减少高频调用
+        end
+    end)
+    coroutine.resume(tpCollectLoop)
+end)
