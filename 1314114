@@ -1,0 +1,491 @@
+local CoreGui = game:GetService("StarterGui")
+CoreGui:SetCore("SendNotification", {
+    Title = "作者:某沙雕鸭子（贝利亚升级）",
+    Text = "正在加载（反挂机已开启）",
+    Duration = 5,
+})
+print("反挂机开启")
+
+local vu = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:connect(function()
+    vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    wait(1)
+    vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local autoFarmEnabled = false
+local grabEnabled = false
+local moveToChestEnabled = false
+local moveSpeed = 50 -- 默认移动速度
+local isFloating = false -- 悬浮状态
+
+-- 使用第一个脚本的宝箱检测系统
+local CHEST_KEYWORDS = {
+    "Chest", "chest", "宝箱", "宝盒", "Treasure", "treasure",
+    "箱子", "Box", "box", "Reward", "reward"
+}
+
+-- 使用第一个脚本的禁止区域设置
+local FORBIDDEN_CENTER = Vector3.new(-4443, 109, -4431)
+local FORBIDDEN_RADIUS = 150
+
+-- 检查位置是否在禁止区域内
+local function isInForbiddenArea(position)
+    local distance = (position - FORBIDDEN_CENTER).Magnitude
+    return distance <= FORBIDDEN_RADIUS
+end
+
+-- 检查对象是否是宝箱
+local function isChest(object)
+    if not object then return false end
+    local objectName = object.Name:lower()
+    for _, keyword in ipairs(CHEST_KEYWORDS) do
+        if objectName:find(keyword:lower(), 1, true) then
+            return true
+        end
+    end
+    if object.Parent then
+        local parentName = object.Parent.Name:lower()
+        for _, keyword in ipairs(CHEST_KEYWORDS) do
+            if parentName:find(keyword:lower(), 1, true) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local chestFolder = workspace:WaitForChild("ChestFolderThing")
+local proximityPrompts = {}
+
+-- 收集所有宝箱的ProximityPrompt
+local function collectChestPrompts()
+    proximityPrompts = {}
+    for _, descendant in ipairs(chestFolder:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") and isChest(descendant.Parent) then
+            local chestPosition = descendant.Parent:GetPivot().Position
+            if not isInForbiddenArea(chestPosition) then
+                table.insert(proximityPrompts, descendant)
+            end
+        end
+    end
+    -- 额外搜索整个工作区
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") and isChest(descendant.Parent) then
+            local chestPosition = descendant.Parent:GetPivot().Position
+            if not isInForbiddenArea(chestPosition) then
+                local alreadyExists = false
+                for _, existingPrompt in ipairs(proximityPrompts) do
+                    if existingPrompt == descendant then
+                        alreadyExists = true
+                        break
+                    end
+                end
+                if not alreadyExists then
+                    table.insert(proximityPrompts, descendant)
+                end
+            end
+        end
+    end
+    print("收集到 " .. #proximityPrompts .. " 个有效宝箱")
+end
+
+-- 初始收集
+collectChestPrompts()
+
+-- 监听新宝箱添加
+chestFolder.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("ProximityPrompt") and isChest(descendant.Parent) then
+        local chestPosition = descendant.Parent:GetPivot().Position
+        if not isInForbiddenArea(chestPosition) then
+            table.insert(proximityPrompts, descendant)
+        end
+    end
+end)
+
+chestFolder.DescendantRemoving:Connect(function(descendant)
+    if descendant:IsA("ProximityPrompt") then
+        for i, prompt in ipairs(proximityPrompts) do
+            if prompt == descendant then
+                table.remove(proximityPrompts, i)
+                break
+            end
+        end
+    end
+end)
+
+-- 使用第一个脚本的触发宝箱函数
+local function triggerNearbyPrompts()
+    local range = 7
+    local character = player.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    local currentPosition = humanoidRootPart.Position
+    if isInForbiddenArea(currentPosition) then return end
+    for _, prompt in ipairs(proximityPrompts) do
+        if prompt and prompt.Parent and prompt.Enabled then
+            local chestPosition = prompt.Parent:GetPivot().Position
+            local distance = (chestPosition - currentPosition).Magnitude
+            if distance <= range and not isInForbiddenArea(chestPosition) then
+                local initialPosition = humanoidRootPart.Position
+                if fireproximityprompt then
+                    fireproximityprompt(prompt)
+                else
+                    warn("are you sure you are using executor?")
+                end
+                wait(0.1)
+                local newPosition = humanoidRootPart.Position
+                local positionChange = (newPosition - initialPosition).Magnitude
+                if positionChange > 50 then
+                    humanoidRootPart.CFrame = CFrame.new(initialPosition)
+                end
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- 移动到最近宝箱的功能
+local function findNearestChest()
+    local character = player.Character
+    if not character then return nil end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return nil end
+    local currentPosition = humanoidRootPart.Position
+    local nearestChest = nil
+    local minDistance = math.huge
+    for _, prompt in ipairs(proximityPrompts) do
+        if prompt and prompt.Parent and prompt.Enabled then
+            local chestPosition = prompt.Parent:GetPivot().Position
+            local distance = (chestPosition - currentPosition).Magnitude
+            if not isInForbiddenArea(chestPosition) and distance < minDistance then
+                minDistance = distance
+                nearestChest = prompt
+            end
+        end
+    end
+    return nearestChest
+end
+
+-- 自动收集循环
+local collectConnection
+local function startAutoCollect()
+    if collectConnection then
+        collectConnection:Disconnect()
+        collectConnection = nil
+    end
+    collectConnection = RunService.Heartbeat:Connect(function()
+        if autoFarmEnabled then
+            triggerNearbyPrompts()
+        end
+    end)
+end
+
+-- 自动移动到宝箱循环
+local moveConnection
+local function startAutoMove()
+    if moveConnection then
+        moveConnection:Disconnect()
+        moveConnection = nil
+    end
+    moveConnection = RunService.Heartbeat:Connect(function(deltaTime)
+        if moveToChestEnabled then
+            local character = player.Character
+            if not character then return end
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            if not humanoidRootPart then return end
+            local nearestChest = findNearestChest()
+            if nearestChest then
+                local chestPosition = nearestChest.Parent:GetPivot().Position
+                local currentPosition = humanoidRootPart.Position
+                -- 检查是否在禁止区域内
+                if isInForbiddenArea(currentPosition) then return end
+                -- 计算移动方向
+                local direction = (chestPosition - currentPosition).Unit
+                local movement = direction * moveSpeed * deltaTime
+                -- 检查移动后的位置是否在禁止区域内
+                local newPosition = currentPosition + movement
+                if not isInForbiddenArea(newPosition) then
+                    humanoidRootPart.CFrame = humanoidRootPart.CFrame + movement
+                end
+            end
+        end
+    end)
+end
+
+-- 悬浮功能（从第一个脚本移植）
+local function toggleFloat()
+    local character = player.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoidRootPart or not humanoid then return end
+    isFloating = not isFloating
+    if isFloating then
+        -- 开启悬浮
+        humanoid.PlatformStand = true
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(0, 0, 0)
+        bv.MaxForce = Vector3.new(0, math.huge, 0)
+        bv.Parent = humanoidRootPart
+        floatToggle.Text = "悬浮: ON"
+        floatToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        -- 关闭悬浮
+        humanoid.PlatformStand = false
+        for _, child in pairs(humanoidRootPart:GetChildren()) do
+            if child:IsA("BodyVelocity") then
+                child:Destroy()
+            end
+        end
+        floatToggle.Text = "悬浮: OFF"
+        floatToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    end
+end
+
+-- 以下保持第二个脚本的原有GUI和功能不变
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "AutoFarmGUI"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 310) -- 增加高度以容纳悬浮按钮
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+-- 折叠按钮（移到左上角）
+local toggleButton = Instance.new("TextButton", frame)
+toggleButton.Text = "−"
+toggleButton.Size = UDim2.new(0, 20, 0, 20)
+toggleButton.Position = UDim2.new(0, 5, 0, 5)
+toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 14
+Instance.new("UICorner", toggleButton)
+
+-- 主内容容器
+local contentContainer = Instance.new("Frame", frame)
+contentContainer.Size = UDim2.new(1, 0, 1, 0)
+contentContainer.Position = UDim2.new(0, 0, 0, 0)
+contentContainer.BackgroundTransparency = 1
+contentContainer.Visible = true
+
+local function label(txt, y)
+    local l = Instance.new("TextLabel", contentContainer)
+    l.Text = txt
+    l.Size = UDim2.new(0, 170, 0, 20)
+    l.Position = UDim2.new(0, 10, 0, y)
+    l.BackgroundTransparency = 1
+    l.Font = Enum.Font.Gotham
+    l.TextColor3 = Color3.fromRGB(200, 200, 200)
+    l.TextSize = 14
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    return l
+end
+
+local function box(default, y)
+    local b = Instance.new("TextBox", contentContainer)
+    b.Text = tostring(default)
+    b.Size = UDim2.new(0, 50, 0, 20)
+    b.Position = UDim2.new(0, 140, 0, y)
+    b.Font = Enum.Font.Gotham
+    b.TextSize = 14
+    b.TextColor3 = Color3.fromRGB(0, 0, 0)
+    b.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    b.ClearTextOnFocus = false
+    return b
+end
+
+-- 速度调节标签和输入框
+label("移动速度:", 10)
+local speedBox = box(moveSpeed, 10)
+speedBox.FocusLost:Connect(function()
+    local val = tonumber(speedBox.Text)
+    if val and val > 0 then
+        moveSpeed = val
+    else
+        speedBox.Text = tostring(moveSpeed)
+    end
+end)
+
+local function button(txt, y)
+    local btn = Instance.new("TextButton", contentContainer)
+    btn.Text = txt
+    btn.Size = UDim2.new(1, -20, 0, 24)
+    btn.Position = UDim2.new(0, 10, 0, y)
+    btn.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn)
+    return btn
+end
+
+-- 在速度调节下面添加悬浮按钮
+local floatToggle = button("悬浮: OFF", 40)
+local autoFarmToggle = button("自动捡箱: OFF", 70)
+local moveToChestToggle = button("移动到宝箱: OFF", 100)
+local grabToggle = button("拿起道具: OFF", 130)
+local killButton = button("秒杀NPC", 160)
+local instantpp = button("秒交互基于iy", 190)
+local autoOpenChests = button("自动开箱 (Off)", 220)
+local clearCups = button("清理杯子 (Off)", 250)
+
+-- 全局变量用于控制功能状态
+local _G = getfenv()
+_G.OpenAllChests = false
+_G.Delete = false
+
+-- 悬浮按钮事件
+floatToggle.MouseButton1Click:Connect(toggleFloat)
+
+autoFarmToggle.MouseButton1Click:Connect(function()
+    autoFarmEnabled = not autoFarmEnabled
+    autoFarmToggle.Text = autoFarmEnabled and "自动捡箱: ON" or "自动捡箱: OFF"
+    if autoFarmEnabled then
+        startAutoCollect()
+    else
+        if collectConnection then
+            collectConnection:Disconnect()
+            collectConnection = nil
+        end
+    end
+end)
+
+moveToChestToggle.MouseButton1Click:Connect(function()
+    moveToChestEnabled = not moveToChestEnabled
+    moveToChestToggle.Text = moveToChestEnabled and "移动到宝箱: ON" or "移动到宝箱: OFF"
+    if moveToChestEnabled then
+        startAutoMove()
+    else
+        if moveConnection then
+            moveConnection:Disconnect()
+            moveConnection = nil
+        end
+    end
+end)
+
+grabToggle.MouseButton1Click:Connect(function()
+    grabEnabled = not grabEnabled
+    grabToggle.Text = grabEnabled and "拿起道具: ON" or "拿起道具: OFF"
+end)
+
+killButton.MouseButton1Click:Connect(function()
+    for _, d in pairs(workspace:GetDescendants()) do
+        if d:IsA("Humanoid") and d.Parent.Name ~= player.Name then
+            d.Health = 0
+        end
+    end
+end)
+
+instantpp.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://rawscripts.net/raw/Infinite-Yield_500"))()
+    wait(2)
+    if game:GetService("Players").LocalPlayer:FindFirstChild("Backpack") then
+        local iy = game:GetService("Players").LocalPlayer.Backpack:FindFirstChild("iy")
+        if iy then
+            iy:Invoke("instantpp")
+        end
+    end
+end)
+
+autoOpenChests.MouseButton1Click:Connect(function()
+    if autoOpenChests.Text == "自动开箱 (Off)" then
+        autoOpenChests.Text = "自动开箱 (On)"
+        autoOpenChests.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        _G.OpenAllChests = true
+        while _G.OpenAllChests == true do
+            wait(1)
+            for i,v in pairs(game.Players.LocalPlayer:FindFirstChildOfClass("Backpack"):GetChildren()) do
+                if string.lower(v.Name):find("chest") then
+                    v.Parent = game.Players.LocalPlayer.Character
+                end
+            end
+            for i,v in pairs(game.Players.LocalPlayer.Character:GetChildren()) do
+                if string.lower(v.Name):find("chest") then
+                    v:Activate()
+                end
+            end
+        end
+    else
+        if autoOpenChests.Text == "自动开箱 (On)" then
+            autoOpenChests.Text = "自动开箱 (Off)"
+            autoOpenChests.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+            _G.OpenAllChests = false
+        end
+    end
+end)
+
+-- 清理杯子功能（已添加 Acid Cup，可正常执行）
+clearCups.MouseButton1Click:Connect(function()
+    if clearCups.Text == "清理杯子 (Off)" then
+        clearCups.Text = "清理杯子 (On)"
+        clearCups.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        _G.Delete = true
+        while _G.Delete == true do
+            wait(1)
+            for i,v in pairs(game.Players.LocalPlayer:FindFirstChildOfClass("Backpack"):GetChildren()) do
+                if v.Name == "Oil Cup" or v.Name == "Blood Cup" or v.Name == "Acid Cup" then
+                    v:Destroy()
+                end
+            end
+        end
+    else
+        if clearCups.Text == "清理杯子 (On)" then
+            clearCups.Text = "清理杯子 (Off)"
+            clearCups.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+            _G.Delete = false
+        end
+    end
+end)
+
+-- 折叠功能
+local isCollapsed = false
+toggleButton.MouseButton1Click:Connect(function()
+    isCollapsed = not isCollapsed
+    if isCollapsed then
+        frame.Size = UDim2.new(0, 200, 0, 30)
+        contentContainer.Visible = false
+        toggleButton.Text = "+"
+    else
+        frame.Size = UDim2.new(0, 200, 0, 310)
+        contentContainer.Visible = true
+        toggleButton.Text = "−"
+    end
+end)
+
+-- 主循环
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if grabEnabled then
+            for _, item in ipairs(workspace:GetDescendants()) do
+                if item:IsA("Tool") and item.Parent == workspace then
+                    item.Parent = player.Backpack
+                end
+            end
+        end
+    end
+end)
+
+-- 角色重置时关闭悬浮
+player.CharacterAdded:Connect(function(character)
+    if isFloating then
+        isFloating = false
+        floatToggle.Text = "悬浮: OFF"
+        floatToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    end
+end)
+
+print("自动农场已加载 - 包含悬浮功能和优化的宝箱检测系统")
