@@ -1,0 +1,413 @@
+local Players = game:GetService('Players')
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild('PlayerGui')
+local Workspace = game:GetService('Workspace')
+
+local scaleGui = Instance.new('ScreenGui')
+scaleGui.Name = 'ScaleGui'
+scaleGui.ResetOnSpawn = false
+scaleGui.DisplayOrder = 15
+scaleGui.Parent = playerGui
+
+local scaleButton = Instance.new('TextButton')
+scaleButton.Name = 'ScaleButton'
+scaleButton.BackgroundColor3 = Color3.fromRGB(40,40,50)
+scaleButton.Size = UDim2.new(0,60,0,60)
+scaleButton.Position = UDim2.new(1,-70,0.5,0)
+scaleButton.Text = '🔍+'
+scaleButton.TextColor3 = Color3.new(1,1,1)
+scaleButton.Font = Enum.Font.GothamBold
+scaleButton.TextSize = 28
+scaleButton.Parent = scaleGui
+
+local scaleCorner = Instance.new('UICorner')
+scaleCorner.CornerRadius = UDim.new(1,0)
+scaleCorner.Parent = scaleButton
+
+local isGuiHidden = true
+local fullSize = UDim2.new(0,400,0,500)
+local mainFrame = nil
+local contentFrame = nil
+
+scaleButton.MouseButton1Click:Connect(function()
+    isGuiHidden = not isGuiHidden
+    if mainFrame and contentFrame then
+        mainFrame.Visible = not isGuiHidden
+        scaleButton.Text = isGuiHidden and '🔍+' or '🔍-'
+    end
+end)
+
+local gui = Instance.new('ScreenGui')
+gui.Name = 'ModularGUI'
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 10
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+gui.Enabled = true
+
+local teleportEnabled = false
+local autoInteractEnabled = false
+local teleportLoop = nil
+local autoInteractLoop = nil
+local defaultTeleportTarget = 'LVContainer'
+local teleportHeight = 3
+local interactRange = 10
+local teleportInterval = 0.5
+local teleportCooldown = 0.2
+local interactInterval = 0.1
+
+player.CharacterAdded:Connect(function(character)
+    local humanoid = character:WaitForChild('Humanoid',5)
+    local hrp = character:WaitForChild('HumanoidRootPart',5)
+    if not humanoid or not hrp then return end
+    
+    teleportEnabled = false
+    autoInteractEnabled = false
+    if teleportLoop then task.cancel(teleportLoop) end
+    if autoInteractLoop then task.cancel(autoInteractLoop) end
+    teleportLoop = nil
+    autoInteractLoop = nil
+    
+    if not playerGui:FindFirstChild('ModularGUI') then
+        local newGui = gui:Clone()
+        newGui.Parent = playerGui
+        gui = newGui
+    end
+    if not playerGui:FindFirstChild('ScaleGui') then
+        local newScaleGui = scaleGui:Clone()
+        newScaleGui.Parent = playerGui
+        scaleGui = newScaleGui
+        scaleButton = scaleGui:FindFirstChild('ScaleButton')
+        
+        scaleButton.MouseButton1Click:Connect(function()
+            isGuiHidden = not isGuiHidden
+            if mainFrame and contentFrame then
+                mainFrame.Visible = not isGuiHidden
+                scaleButton.Text = isGuiHidden and '🔍+' or '🔍-'
+            end
+        end)
+    end
+end)
+
+local colors = {
+    background = Color3.fromRGB(30,30,40),
+    header = Color3.fromRGB(40,40,50),
+    text = Color3.fromRGB(255,255,255),
+    subtext = Color3.fromRGB(200,200,200),
+    toggleOff = Color3.fromRGB(60,60,70),
+    toggleOn = Color3.fromRGB(0,170,127),
+    input = Color3.fromRGB(50,50,60),
+}
+
+local activeFunctions = 0
+local teleportToggleBtn = nil
+local interactToggleBtn = nil
+local teleportInput = nil
+local teleportIntervalInput = nil
+local interactIntervalInput = nil
+
+mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.AnchorPoint = Vector2.new(0.5,0.5)
+mainFrame.BackgroundColor3 = colors.background
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Position = UDim2.new(0.5,0,0.5,0)
+mainFrame.Size = fullSize
+mainFrame.Visible = false
+mainFrame.Parent = gui
+
+local corner = Instance.new('UICorner')
+corner.CornerRadius = UDim.new(0,8)
+corner.Parent = mainFrame
+
+local shadow = Instance.new('ImageLabel')
+shadow.Name = 'Shadow'
+shadow.AnchorPoint = Vector2.new(0.5,0.5)
+shadow.BackgroundTransparency = 1
+shadow.Position = UDim2.new(0.5,0,0.5,4)
+shadow.Size = UDim2.new(1,10,1,10)
+shadow.Image = 'rbxassetid://1316045217'
+shadow.ImageColor3 = Color3.new(0,0,0)
+shadow.ImageTransparency = 0.8
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10,10,118,118)
+shadow.Parent = mainFrame
+shadow.ZIndex = -1
+
+local titleBar = Instance.new('Frame')
+titleBar.Name = 'TitleBar'
+titleBar.BackgroundColor3 = colors.header
+titleBar.Size = UDim2.new(1,0,0,30)
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new('UICorner')
+titleCorner.CornerRadius = UDim.new(0,8)
+titleCorner.Parent = titleBar
+
+local title = Instance.new('TextLabel')
+title.Name = 'Title'
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0,10,0,0)
+title.Size = UDim2.new(1,-50,1,0)
+title.Font = Enum.Font.GothamSemibold
+title.Text = 'Auto Scripts'
+title.TextColor3 = colors.text
+title.TextSize = 14
+title.Parent = titleBar
+
+local closeButton = Instance.new('TextButton')
+closeButton.Name = 'CloseButton'
+closeButton.BackgroundTransparency = 1
+closeButton.Size = UDim2.new(0,20,1,0)
+closeButton.Position = UDim2.new(1,-30,0,0)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Text = 'X'
+closeButton.TextColor3 = colors.text
+closeButton.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    isGuiHidden = true
+    scaleButton.Text = '🔍+'
+end)
+closeButton.Parent = titleBar
+
+contentFrame = Instance.new('Frame')
+contentFrame.Name = 'ContentFrame'
+contentFrame.BackgroundTransparency = 1
+contentFrame.Position = UDim2.new(0,10,0,40)
+contentFrame.Size = UDim2.new(1,-20,1,-50)
+contentFrame.Parent = mainFrame
+
+local dragging,dragStart,startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+    end
+end)
+
+local currentYPosition = 0
+local elementPadding = 5
+
+local function UpdateFrameSize()
+    local totalHeight = 40 + currentYPosition + 10
+    fullSize = UDim2.new(0,400,0,totalHeight)
+    mainFrame.Size = fullSize
+end
+
+function CreateSection(titleText)
+    local sectionFrame = Instance.new('Frame')
+    sectionFrame.Name = titleText..'Section'
+    sectionFrame.BackgroundTransparency = 1
+    sectionFrame.Position = UDim2.new(0,0,0,currentYPosition)
+    sectionFrame.Size = UDim2.new(1,0,0,20)
+    sectionFrame.Parent = contentFrame
+
+    local label = Instance.new('TextLabel')
+    label.Name = 'Label'
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1,0,1,0)
+    label.Font = Enum.Font.Gotham
+    label.Text = titleText
+    label.TextColor3 = colors.subtext
+    label.TextSize = 12
+    label.Parent = sectionFrame
+
+    currentYPosition = currentYPosition + 20 + elementPadding
+    UpdateFrameSize()
+end
+
+local function updateToggleStates()
+    if teleportToggleBtn then
+        teleportToggleBtn.Text = teleportEnabled and 'ON' or 'OFF'
+        teleportToggleBtn.BackgroundColor3 = teleportEnabled and colors.toggleOn or colors.toggleOff
+    end
+    if interactToggleBtn then
+        interactToggleBtn.Text = autoInteractEnabled and 'ON' or 'OFF'
+        interactToggleBtn.BackgroundColor3 = autoInteractEnabled and colors.toggleOn or colors.toggleOff
+    end
+end
+
+function CreateToggle(toggleName,defaultState,callback)
+    local toggleFrame = Instance.new('Frame')
+    toggleFrame.Name = toggleName..'Toggle'
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Position = UDim2.new(0,0,0,currentYPosition)
+    toggleFrame.Size = UDim2.new(1,0,0,30)
+    toggleFrame.Parent = contentFrame
+
+    local label = Instance.new('TextLabel')
+    label.Name = 'Label'
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.7,0,1,0)
+    label.Font = Enum.Font.Gotham
+    label.Text = toggleName
+    label.TextColor3 = colors.text
+    label.TextSize = 14
+    label.Parent = toggleFrame
+
+    local toggleButton = Instance.new('TextButton')
+    toggleButton.Name = 'ToggleButton'
+    toggleButton.AnchorPoint = Vector2.new(1,0.5)
+    toggleButton.BackgroundColor3 = defaultState and colors.toggleOn or colors.toggleOff
+    toggleButton.Size = UDim2.new(0,50,0,25)
+    toggleButton.Position = UDim2.new(1,0,0.5,0)
+    toggleButton.Font = Enum.Font.Gotham
+    toggleButton.Text = defaultState and 'ON' or 'OFF'
+    toggleButton.TextColor3 = colors.text
+    toggleButton.Parent = toggleFrame
+
+    local toggleCorner = Instance.new('UICorner')
+    toggleCorner.CornerRadius = UDim.new(0,12)
+    toggleCorner.Parent = toggleButton
+
+    if toggleName == '自动传送' then teleportToggleBtn = toggleButton end
+    if toggleName == '自动交互' then interactToggleBtn = toggleButton end
+
+    toggleButton.MouseButton1Click:Connect(function()
+        local newState = not (toggleButton.Text == 'ON')
+        toggleButton.Text = newState and 'ON' or 'OFF'
+        toggleButton.BackgroundColor3 = newState and colors.toggleOn or colors.toggleOff
+        callback(newState)
+        activeFunctions = newState and activeFunctions + 1 or math.max(0,activeFunctions - 1)
+    end)
+
+    currentYPosition = currentYPosition + 30 + elementPadding
+    UpdateFrameSize()
+end
+
+function CreateInputBox(labelText,placeholder,isNumber)
+    local inputFrame = Instance.new('Frame')
+    inputFrame.Name = labelText..'InputFrame'
+    inputFrame.BackgroundTransparency = 1
+    inputFrame.Position = UDim2.new(0,0,0,currentYPosition)
+    inputFrame.Size = UDim2.new(1,0,0,60)
+    inputFrame.Parent = contentFrame
+
+    local inputLabel = Instance.new('TextLabel')
+    inputLabel.Name = 'InputLabel'
+    inputLabel.BackgroundTransparency = 1
+    inputLabel.Size = UDim2.new(1,0,0,20)
+    inputLabel.Font = Enum.Font.Gotham
+    inputLabel.Text = labelText
+    inputLabel.TextColor3 = colors.subtext
+    inputLabel.TextSize = 12
+    inputLabel.Parent = inputFrame
+
+    local inputBox = Instance.new('TextBox')
+    inputBox.Name = 'InputBox'
+    inputBox.BackgroundColor3 = colors.input
+    inputBox.Size = UDim2.new(1,0,0,30)
+    inputBox.Position = UDim2.new(0,0,0,25)
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.PlaceholderText = placeholder
+    inputBox.Text = placeholder
+    inputBox.TextColor3 = colors.text
+    
+    if isNumber then
+        inputBox.FocusLost:Connect(function()
+            local num = tonumber(inputBox.Text)
+            if not num or num < 0.01 then inputBox.Text = placeholder end
+        end)
+    end
+
+    local inputCorner = Instance.new('UICorner')
+    inputCorner.CornerRadius = UDim.new(0,8)
+    inputCorner.Parent = inputBox
+
+    inputBox.Parent = inputFrame
+    currentYPosition = currentYPosition + 60 + elementPadding
+    UpdateFrameSize()
+    return inputBox
+end
+
+CreateSection('基础设置')
+teleportInput = CreateInputBox('传送目标名称',defaultTeleportTarget,false)
+teleportIntervalInput = CreateInputBox('传送间隔（秒）',tostring(teleportInterval),true)
+interactIntervalInput = CreateInputBox('交互间隔（秒）',tostring(interactInterval),true)
+
+CreateSection('功能开关')
+CreateToggle('自动传送',false,function(state)
+    teleportEnabled = state
+    if state then
+        local currentTargetIndex = 1
+        teleportLoop = task.spawn(function()
+            while teleportEnabled do
+                local interval = tonumber(teleportIntervalInput.Text) or teleportInterval
+                task.wait(interval)
+
+                local character = player.Character
+                if not character then continue end
+                local humanoid = character:FindFirstChild('Humanoid')
+                local hrp = character:FindFirstChild('HumanoidRootPart')
+                if not humanoid or not hrp or humanoid.Health <= 0 then continue end
+
+                local targetName = teleportInput.Text ~= '' and teleportInput.Text or defaultTeleportTarget
+                local validTargets = {}
+                -- 双检测BasePart和Model（取PrimaryPart）
+                for _,obj in pairs(game.Workspace:GetDescendants()) do
+                    if obj:IsA('BasePart') and obj.Name == targetName then
+                        table.insert(validTargets, obj)
+                    elseif obj:IsA('Model') and obj.Name == targetName then
+                        local primaryPart = obj.PrimaryPart
+                        if primaryPart then
+                            table.insert(validTargets, primaryPart)
+                        end
+                    end
+                end
+
+                if #validTargets > 0 then
+                    local target = validTargets[currentTargetIndex]
+                    currentTargetIndex = currentTargetIndex + 1
+                    if currentTargetIndex > #validTargets then
+                        currentTargetIndex = 1
+                    end
+                    hrp.CFrame = CFrame.new(target.Position + Vector3.new(0, teleportHeight, 0))
+                    task.wait(teleportCooldown)
+                end
+            end
+        end)
+    else
+        teleportEnabled = false
+        if teleportLoop then task.cancel(teleportLoop) teleportLoop = nil end
+    end
+end)
+
+CreateToggle('自动交互',false,function(state)
+    autoInteractEnabled = state
+    if state then
+        autoInteractLoop = task.spawn(function()
+            while autoInteractEnabled do
+                local interval = tonumber(interactIntervalInput.Text) or interactInterval
+                task.wait(interval)
+
+                local character = player.Character
+                if not character then continue end
+                local hrp = character:FindFirstChild('HumanoidRootPart')
+                if not hrp then continue end
+
+                local hrpPos = hrp.Position
+                local nearbyParts = Workspace:GetPartBoundsInRadius(hrpPos,interactRange)
+                for _,part in pairs(nearbyParts) do
+                    local click = part:FindFirstChildOfClass('ClickDetector')
+                    if click then pcall(function() fireclickdetector(click) end) task.wait(0.05) end
+                    local prompt = part:FindFirstChildOfClass('ProximityPrompt')
+                    if prompt then pcall(function() fireproximityprompt(prompt) end) task.wait(0.05) end
+                end
+            end
+        end)
+    else
+        autoInteractEnabled = false
+        if autoInteractLoop then task.cancel(autoInteractLoop) autoInteractLoop = nil end
+    end
+end)
